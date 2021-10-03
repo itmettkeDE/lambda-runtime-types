@@ -16,6 +16,7 @@ rustdoc-args = ["--cfg", "docsrs"]
 
 [features]
 rotate = ["rusoto_core", "rusoto_secretsmanager", "serde_json"]
+test = ["serde_json"]
 
 [dependencies]
 anyhow = "1.0"
@@ -30,4 +31,5 @@ serde_json = { version = "1.0", optional = true }
 tokio = { version = "1.10" }
 
 [dev-dependencies]
+simple_logger = "1.13"
 serde_json = "1.0"

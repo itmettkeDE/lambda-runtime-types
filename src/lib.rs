@@ -185,6 +185,9 @@
 #[cfg_attr(docsrs, doc(cfg(feature = "rotate")))]
 pub mod rotate;
 
+#[cfg(test)]
+use simple_logger as _;
+
 /// Defines a type which is executed every time a lambda
 /// is invoced.
 ///
@@ -250,7 +253,6 @@ where
     use anyhow::Context;
     use tokio::runtime::Builder;
 
-    log::info!("Creating tokio runtime");
     Builder::new_multi_thread()
         .enable_all()
         .build()
@@ -288,16 +290,16 @@ where
     use lambda_runtime::{handler_fn, Context as LContext};
     use std::env;
 
+    Run::setup().await?;
     log::info!("Starting lambda runtime");
     let region = env::var("AWS_REGION").context("Missing AWS_REGION env variable")?;
     let region_ref = &region;
     let shared = Shared::default();
     let shared_ref = &shared;
-    Run::setup().await?;
     lambda_runtime::run(handler_fn(move |data, context: LContext| {
         log::info!("Received lambda incation with event: {:?}", data);
         let deadline: u64 = context.deadline;
-        run::<_, Event, Run, Return>(shared_ref, data, deadline, region_ref)
+        run::<_, Event, Run, Return>(shared_ref, data, Some(deadline), region_ref)
     }))
     .await
     .map_err(|e| anyhow!(e))
@@ -307,7 +309,7 @@ where
 async fn run<Shared, Event, Run, Return>(
     shared: &Shared,
     event: Event,
-    deadline_in_ms: u64,
+    deadline_in_ms: Option<u64>,
     region: &str,
 ) -> anyhow::Result<Return>
 where
@@ -320,10 +322,14 @@ where
     use futures::FutureExt;
 
     let mut runner = Run::run(shared, event, region).fuse();
-    let mut timeout = Box::pin(timeout_handler(deadline_in_ms).fuse());
-    let res = futures::select! {
-        res = runner => res,
-        _ = timeout => Err(anyhow!("Lambda failed by running into a timeout")),
+    let res = if let Some(deadline_in_ms) = deadline_in_ms {
+        let mut timeout = Box::pin(timeout_handler(deadline_in_ms).fuse());
+        futures::select! {
+            res = runner => res,
+            _ = timeout => Err(anyhow!("Lambda failed by running into a timeout")),
+        }
+    } else {
+        runner.await
     };
     log::info!("Completed lambda invocation");
     match res {
@@ -350,4 +356,67 @@ async fn timeout_handler(deadline_in_ms: u64) {
     let deadline = now_instant + duration_deadline;
     log::info!("Setting deadline to: {:?}", deadline);
     tokio::time::sleep_until(deadline).await;
+}
+
+/// TestData which can be used to test lambda invocations
+/// locally in combination with [`exec_test`].
+#[derive(serde::Deserialize, Clone, Debug)]
+#[cfg(feature = "test")]
+#[cfg_attr(docsrs, doc(cfg(feature = "test")))]
+pub struct TestData<Event> {
+    region: String,
+    invocations: Vec<Event>,
+}
+
+/// Lambda entrypoint. This function can be used to
+/// test one or multiple lambda invocations locally.
+///
+/// Types:
+/// * `Shared`: Type which is shared between lambda
+///             invocations. Note that lambda will
+///             create multiple environments for
+///             simulations invokations and environments
+///             are only kept alive for a certain time.
+///             It is thus not guaranteed that data
+///             can be reused, but with this types
+///             its possible.
+/// * `Event`:  The expected Event which is being send
+///             to the lambda by AWS.
+/// * `Run`:    Runner which is execued for each lambda
+///             invocation.
+/// * `Return`: Type which is the result of the lamba
+///             invocation being returned to AWS
+#[cfg(feature = "test")]
+#[cfg_attr(docsrs, doc(cfg(feature = "test")))]
+pub fn exec_test<Shared, Event, Run, Return>(test_data: &str) -> anyhow::Result<()>
+where
+    Shared: Default + Send + Sync,
+    Event: for<'de> serde::Deserialize<'de> + std::fmt::Debug,
+    Run: Runner<Shared, Event, Return>,
+    Return: serde::Serialize + std::fmt::Debug,
+{
+    use anyhow::Context;
+    use tokio::runtime::Builder;
+
+    log::info!("Creating tokio runtime");
+    Builder::new_multi_thread()
+        .enable_all()
+        .build()
+        .context("Unable to build tokio runtime")?
+        .block_on(async {
+            Run::setup().await?;
+            log::info!("Starting lambda test runtime");
+            let test_data: TestData<Event> =
+                serde_json::from_str(test_data).context("Unable to deserialize test_data")?;
+            let shared = Shared::default();
+            let shared_ref = &shared;
+            let region_ref = &test_data.region;
+
+            for (i, data) in test_data.invocations.into_iter().enumerate() {
+                log::info!("Invocation: {}", i);
+                let res = run::<_, Event, Run, Return>(shared_ref, data, None, region_ref).await?;
+                log::info!("{:?}", res);
+            }
+            Ok(())
+        })
 }

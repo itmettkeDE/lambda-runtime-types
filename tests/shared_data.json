@@ -1,0 +1,10 @@
+{
+    "region": "eu-central-1",
+    "invocations": [{
+        "test": "test"
+    }, {
+        "test": "test"
+    }, {
+        "test": "test2"
+    }]
+}

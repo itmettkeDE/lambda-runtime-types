@@ -1,0 +1,20 @@
+{
+    "region": "eu-central-1",
+    "invocations": [{
+        "ClientRequestToken": "ee1d48d8-fa25-4e15-93de-1b9c6c6abea7",
+        "SecretId": "test_secret",
+        "Step": "createSecret"
+    }, {
+        "ClientRequestToken": "ee1d48d8-fa25-4e15-93de-1b9c6c6abea7",
+        "SecretId": "test_secret",
+        "Step": "setSecret"
+    }, {
+        "ClientRequestToken": "ee1d48d8-fa25-4e15-93de-1b9c6c6abea7",
+        "SecretId": "test_secret",
+        "Step": "testSecret"
+    }, {
+        "ClientRequestToken": "ee1d48d8-fa25-4e15-93de-1b9c6c6abea7",
+        "SecretId": "test_secret",
+        "Step": "finishSecret"
+    }]
+}
