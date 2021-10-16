@@ -185,7 +185,7 @@
 #[cfg_attr(docsrs, doc(cfg(feature = "rotate")))]
 pub mod rotate;
 
-#[cfg(test)]
+#[cfg(any(test, feature = "binary"))]
 use simple_logger as _;
 
 /// Defines a type which is executed every time a lambda
