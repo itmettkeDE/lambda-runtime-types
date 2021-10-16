@@ -179,15 +179,27 @@
     clippy::cargo,
     clippy::nursery
 )]
-#![allow(clippy::multiple_crate_versions, clippy::future_not_send)]
+#![allow(
+    clippy::multiple_crate_versions,
+    clippy::future_not_send,
+    clippy::wildcard_dependencies
+)]
 #![cfg_attr(docsrs, feature(doc_cfg))]
 
 #[cfg(feature = "rotate")]
 #[cfg_attr(docsrs, doc(cfg(feature = "rotate")))]
 pub mod rotate;
 
-#[cfg(any(test, feature = "binary"))]
+#[cfg(test)]
+use native_tls as _;
+#[cfg(all(test, target_env = "musl"))]
+use openssl as _;
+#[cfg(test)]
+use postgres_native_tls as _;
+#[cfg(test)]
 use simple_logger as _;
+#[cfg(test)]
+use tokio_postgres as _;
 
 /// Defines a type which is executed every time a lambda
 /// is invoced.
