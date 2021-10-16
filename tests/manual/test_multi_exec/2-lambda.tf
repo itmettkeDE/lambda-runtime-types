@@ -3,7 +3,7 @@ resource "aws_cloudwatch_log_group" "lambda_log_group" {
   retention_in_days = 7
 
   tags = {
-    Name         = "${local.app}"
+    Name         = local.app
     Provisioning = "Terraform"
   }
 }
@@ -16,7 +16,6 @@ resource "aws_lambda_function" "lambda" {
   runtime          = "provided.al2"
   timeout          = 10
   source_code_hash = filebase64sha256("${path.module}/${local.app}.zip")
-  publish          = true
 
   tags = {
     Name         = local.app

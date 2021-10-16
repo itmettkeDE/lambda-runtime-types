@@ -16,7 +16,7 @@ resource "aws_iam_role" "iam_for_lambda" {
   })
 
   tags = {
-    Name         = "${local.app}"
+    Name         = local.app
     Provisioning = "Terraform"
   }
 }
@@ -43,7 +43,7 @@ resource "aws_iam_policy" "lambda_default_policy" {
   })
 
   tags = {
-    Name         = "${local.app}"
+    Name         = local.app
     Provisioning = "Terraform"
   }
 }
