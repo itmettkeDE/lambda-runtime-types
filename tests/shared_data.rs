@@ -34,6 +34,7 @@ impl lambda_runtime_types::Runner<Shared, Event, Return> for Runner {
 
     async fn setup() -> anyhow::Result<()> {
         simple_logger::SimpleLogger::new()
+            .with_level(log::LevelFilter::Info)
             .init()
             .expect("Unable to setup logging");
         Ok(())
