@@ -11,9 +11,4 @@ module "vpc" {
   enable_nat_gateway      = true
   single_nat_gateway      = true
   map_public_ip_on_launch = true
-
-  tags = {
-    Name         = local.app
-    Provisioning = "Terraform"
-  }
 }

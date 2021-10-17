@@ -1,7 +1,9 @@
 #!/usr/bin/env bash
 set -e
+EXIT=0
 
-terraform apply -auto-approve
+echo "Creating resources. Please wait"
+terraform apply -auto-approve > ./output
 
 echo "Executing Test. Please wait"
 PW=$(cat "./password")
@@ -26,14 +28,14 @@ if [ "${FOUND}" = true ] ; then
     echo "Test successfull"
 else 
     echo "Test failed. Password is still: ${PW_NEW}"
+    EXIT=1
 fi
 
-echo "Press Enter to cleanup test"
+echo "Destroying resources. Please wait"
 cat <<EOF
 Hint: Lambda creates Network Interfaces which are not cleaned up by terraform.
-It takes about 20 minutes for them to not be in use anymore, afterwards they
-must be deleted manually.
+It takes about 20 minutes for them to not be in use anymore, afterwards you
+may need to delete them manually.
 EOF
-
-read
-terraform destroy -auto-approve
+terraform destroy -auto-approve > ./output
+exit "${EXIT}"

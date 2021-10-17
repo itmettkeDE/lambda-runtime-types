@@ -1,10 +1,5 @@
 resource "aws_secretsmanager_secret" "secret" {
   name_prefix = local.app
-
-  tags = {
-    Name         = local.app
-    Provisioning = "Terraform"
-  }
 }
 
 resource "aws_secretsmanager_secret_version" "secret_inital" {
@@ -36,11 +31,6 @@ resource "aws_secretsmanager_secret_rotation" "tnbl_password_rotation" {
 
   rotation_rules {
     automatically_after_days = 30
-  }
-
-  tags = {
-    Name         = local.app
-    Provisioning = "Terraform"
   }
 }
 

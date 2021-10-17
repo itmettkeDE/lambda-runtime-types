@@ -1,11 +1,6 @@
 resource "aws_cloudwatch_log_group" "lambda_log_group" {
   name              = "/aws/lambda/${local.app}"
   retention_in_days = 7
-
-  tags = {
-    Name         = local.app
-    Provisioning = "Terraform"
-  }
 }
 
 resource "aws_lambda_function" "lambda" {
@@ -21,11 +16,6 @@ resource "aws_lambda_function" "lambda" {
     security_group_ids = [aws_security_group.lambda_rotation_secgroup.id]
     subnet_ids         = module.vpc.private_subnets
   }
-
-  tags = {
-    Name         = local.app
-    Provisioning = "Terraform"
-  }
 }
 
 resource "aws_security_group" "lambda_rotation_secgroup" {
@@ -38,11 +28,6 @@ resource "aws_security_group" "lambda_rotation_secgroup" {
     to_port     = 0
     protocol    = "-1"
     cidr_blocks = ["0.0.0.0/0"]
-  }
-
-  tags = {
-    Name         = local.app
-    Provisioning = "Terraform"
   }
 }
 
@@ -77,11 +62,6 @@ resource "aws_iam_policy" "lambda_to_secretmanager_policy" {
       }
     ]
   })
-
-  tags = {
-    Name         = local.app
-    Provisioning = "Terraform"
-  }
 }
 
 resource "aws_iam_role_policy_attachment" "lambda_role_policy_attachment3" {

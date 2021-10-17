@@ -17,11 +17,6 @@ resource "aws_security_group" "db_sec_group" {
     protocol    = "-1"
     cidr_blocks = ["0.0.0.0/0"]
   }
-
-  tags = {
-    Name         = local.app
-    Provisioning = "Terraform"
-  }
 }
 
 module "rds" {
@@ -51,9 +46,4 @@ module "rds" {
   monitoring_interval = 10
 
   copy_tags_to_snapshot = true
-
-  tags = {
-    Name         = local.app
-    Provisioning = "Terraform"
-  }
 }
