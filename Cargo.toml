@@ -40,8 +40,7 @@ serde_json = "1.0"
 tokio-postgres = "0.7"
 
 [target.x86_64-unknown-linux-musl.dev-dependencies]
-# Required by native-tls which will specify the version
-openssl = { version = '*', features = ["vendored"] }
+openssl = { version = '0.10', features = ["vendored"] }
 
 [[example]]
 name = "test_postgres_rotation"
