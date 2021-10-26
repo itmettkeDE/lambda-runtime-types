@@ -47,10 +47,7 @@ impl lambda_runtime_types::rotate::RotateRunner<(), Secret> for Runner {
         secret_new: lambda_runtime_types::rotate::SecretContainer<Secret>,
         _region: &str,
     ) -> anyhow::Result<()> {
-        PgDatabase::new(&secret_new)
-            .await?
-            .test_connection()
-            .await
+        PgDatabase::new(&secret_new).await?.test_connection().await
     }
 }
 

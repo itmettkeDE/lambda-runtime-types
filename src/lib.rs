@@ -151,12 +151,12 @@
     macro_use_extern_crate,
     meta_variable_misuse,
     missing_copy_implementations,
-    missing_crate_level_docs,
+    rustdoc::missing_crate_level_docs,
     missing_debug_implementations,
     missing_docs,
-    missing_doc_code_examples,
+    rustdoc::missing_doc_code_examples,
     non_ascii_idents,
-    private_doc_tests,
+    rustdoc::private_doc_tests,
     trivial_casts,
     trivial_numeric_casts,
     unaligned_references,
@@ -310,7 +310,7 @@ where
     let shared = Shared::default();
     let shared_ref = &shared;
     lambda_runtime::run(handler_fn(move |data, context: LContext| {
-        log::info!("Received lambda incation with event: {:?}", data);
+        log::info!("Received lambda invocation with event: {:?}", data);
         let deadline: u64 = context.deadline;
         run::<_, Event, Run, Return>(shared_ref, data, Some(deadline), region_ref)
     }))
@@ -411,7 +411,6 @@ where
     use anyhow::Context;
     use tokio::runtime::Builder;
 
-    log::info!("Creating tokio runtime");
     Builder::new_multi_thread()
         .enable_all()
         .build()
@@ -426,7 +425,7 @@ where
             let region_ref = &test_data.region;
 
             for (i, data) in test_data.invocations.into_iter().enumerate() {
-                log::info!("Invocation: {}", i);
+                log::info!("Starting lambda invocation: {}", i);
                 let res = run::<_, Event, Run, Return>(shared_ref, data, None, region_ref).await?;
                 log::info!("{:?}", res);
             }

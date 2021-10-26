@@ -1,4 +1,4 @@
-# lambda_runtime_types
+# lambda-runtime-types
 
 This crate provides types and traits to simplify
 the creation of lambda functions in rust. It
@@ -101,7 +101,8 @@ struct Runner;
 #[async_trait::async_trait]
 impl lambda_runtime_types::Runner<Shared, (), ()> for Runner {
     async fn run<'a>(shared: &'a Shared, event: (), region: &'a str) -> anyhow::Result<()> {
-        *shared.invocations.lock().await += 1;
+        let mut invocations = shared.invocations.lock().await;
+        *invocations += 1;
         Ok(())
     }
 
