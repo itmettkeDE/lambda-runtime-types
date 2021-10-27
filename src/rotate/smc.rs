@@ -185,10 +185,11 @@ impl Smc {
         }
     }
 
-    pub(crate) async fn set_pending_secret_value_to_current<S: serde::de::DeserializeOwned>(
+    pub(crate) async fn set_pending_secret_value_to_current(
         &self,
-        secret_current: &Secret<S>,
-        secret_pending: &Secret<S>,
+        secret_arn: String,
+        secret_current_version_id: String,
+        secret_pending_version_id: String,
     ) -> anyhow::Result<()> {
         use anyhow::Context;
         use rusoto_secretsmanager::SecretsManager;
@@ -198,9 +199,9 @@ impl Smc {
                 .client
                 .update_secret_version_stage(
                     rusoto_secretsmanager::UpdateSecretVersionStageRequest {
-                        move_to_version_id: Some(secret_pending.version_id.clone()),
-                        remove_from_version_id: Some(secret_current.version_id.clone()),
-                        secret_id: secret_current.arn.clone(),
+                        move_to_version_id: Some(secret_pending_version_id.clone()),
+                        remove_from_version_id: Some(secret_current_version_id.clone()),
+                        secret_id: secret_arn.clone(),
                         version_stage: "AWSCURRENT".into(),
                     },
                 )
@@ -211,7 +212,7 @@ impl Smc {
             let _ = res.with_context(|| {
                 format!(
                     "Unable to push new SecretValue to AWSPENDING for arn: {}",
-                    secret_current.arn
+                    secret_arn
                 )
             })?;
             break Ok(());

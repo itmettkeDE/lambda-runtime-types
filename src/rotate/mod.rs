@@ -56,6 +56,7 @@
 //!
 //!     async fn finish(
 //!         shared: &(),
+//!         secret_cur: lambda_runtime_types::rotate::SecretContainer<Secret>,
 //!         secret_new: lambda_runtime_types::rotate::SecretContainer<Secret>,
 //!         region: &str,
 //!     ) -> anyhow::Result<()> {
@@ -183,6 +184,7 @@ where
     /// Perform any work which may be necessary to complete rotation
     async fn finish(
         _shared: &Shared,
+        _secret_cur: SecretContainer<Secret>,
         _secret_new: SecretContainer<Secret>,
         _region: &str,
     ) -> anyhow::Result<()> {
@@ -253,9 +255,13 @@ where
                     smc.get_secret_value_current(&event.secret_id).await?;
                 let secret_pending: Secret<Sec> =
                     smc.get_secret_value_pending(&event.secret_id).await?;
-                smc.set_pending_secret_value_to_current(&secret_current, &secret_pending)
-                    .await?;
-                Self::finish(shared, secret_pending.inner, region).await?;
+                Self::finish(shared, secret_current.inner, secret_pending.inner, region).await?;
+                smc.set_pending_secret_value_to_current(
+                    secret_current.arn,
+                    secret_current.version_id,
+                    secret_pending.version_id,
+                )
+                .await?;
             }
         }
         Ok(())
