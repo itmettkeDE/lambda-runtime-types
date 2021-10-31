@@ -213,23 +213,23 @@ where
         log::info!("{:?}", event.step);
         match event.step {
             Step::Create => {
-                if smc
-                    .get_secret_value_pending::<Sec>(&event.secret_id)
-                    .await
-                    .is_err()
-                {
-                    log::info!("Creating new secret value.");
-                    let secret = smc.get_secret_value_current(&event.secret_id).await?.inner;
-                    let secret = Self::create(shared, secret, &smc, region).await?;
-                    smc.put_secret_value_pending(
-                        &event.secret_id,
-                        Some(&event.client_request_token),
-                        &secret,
-                    )
-                    .await?;
-                } else {
-                    log::info!("Found existing pending value.");
+                let secret_cur = smc.get_secret_value_current::<Sec>(&event.secret_id).await?;
+                let secret_new = smc.get_secret_value_pending::<Sec>(&event.secret_id).await;
+                if let Ok(secret_new) = secret_new {
+                    if secret_new.version_id != secret_cur.version_id {
+                        log::info!("Found existing pending value.");
+                        return Ok(());
+                    }
                 }
+                log::info!("Creating new secret value.");
+                let secret = Self::create(shared, secret_cur.inner, &smc, region).await?;
+                smc.put_secret_value_pending(
+                    &event.secret_id,
+                    Some(&event.client_request_token),
+                    &secret,
+                )
+                .await?;
+                Ok(())
             }
             Step::Set => {
                 log::info!("Setting secret on remote system.");
@@ -243,11 +243,13 @@ where
                 } else {
                     log::info!("Password already set in remote system.");
                 }
+                Ok(())
             }
             Step::Test => {
                 log::info!("Testing secret on remote system.");
                 let secret = smc.get_secret_value_pending(&event.secret_id).await?.inner;
                 Self::test(shared, secret, region).await?;
+                Ok(())
             }
             Step::Finish => {
                 log::info!("Finishing secret deployment.");
@@ -262,8 +264,8 @@ where
                     secret_pending.version_id,
                 )
                 .await?;
+                Ok(())
             }
         }
-        Ok(())
     }
 }
