@@ -1,6 +1,6 @@
 [package]
 name = "lambda-runtime-types"
-version = "0.3.1"
+version = "0.3.2"
 authors = ["Marc Mettke <marc@itmettke.de>"]
 edition = "2021"
 description = "Common structures for lambda architecture"
@@ -16,7 +16,9 @@ all-features = true
 rustdoc-args = ["--cfg", "docsrs"]
 
 [features]
+default = ["rotate_with_preserve"]
 rotate = ["rusoto_core", "rusoto_secretsmanager", "serde_json"]
+rotate_with_preserve = []
 test = ["serde_json"]
 
 [dependencies]

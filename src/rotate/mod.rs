@@ -213,7 +213,9 @@ where
         log::info!("{:?}", event.step);
         match event.step {
             Step::Create => {
-                let secret_cur = smc.get_secret_value_current::<Sec>(&event.secret_id).await?;
+                let secret_cur = smc
+                    .get_secret_value_current::<Sec>(&event.secret_id)
+                    .await?;
                 let secret_new = smc.get_secret_value_pending::<Sec>(&event.secret_id).await;
                 if let Ok(secret_new) = secret_new {
                     if secret_new.version_id != secret_cur.version_id {

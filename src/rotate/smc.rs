@@ -20,6 +20,9 @@ pub struct SecretContainer<S> {
     pub data: S,
     /// Other fields not defined by `S`. Necessary to preserve
     /// available fields, which are not defined in the type.
+    /// Enabled by default with feature `rotate_with_preserve`
+    #[cfg_attr(docsrs, doc(cfg(feature = "rotate_with_preserve")))]
+    #[cfg(feature = "rotate_with_preserve")]
     #[serde(flatten)]
     pub o: std::collections::HashMap<String, serde_json::Value>,
 }
