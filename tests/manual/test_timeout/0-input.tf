@@ -2,7 +2,7 @@ data "aws_region" "current" {}
 data "aws_caller_identity" "current" {}
 
 locals {
-  app = "test_timeout"
+  app     = "test_timeout"
   iam_arn = "arn:aws:iam::118325176989:role/lambda-role-default-ci"
 }
 
