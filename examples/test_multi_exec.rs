@@ -7,7 +7,7 @@ struct Runner;
 
 #[async_trait::async_trait]
 impl lambda_runtime_types::Runner<Shared, (), u64> for Runner {
-    async fn run<'a>(shared: &'a Shared, _event: (), _region: &'a str) -> anyhow::Result<u64> {
+    async fn run<'a>(shared: &'a Shared, _event: (), _region: &'a str, _ctx: lambda_runtime_types::Context) -> anyhow::Result<u64> {
         let mut invocations = shared.invocations.lock().await;
         *invocations += 1;
         Ok(*invocations)

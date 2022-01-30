@@ -13,7 +13,7 @@
 //!
 //! #[async_trait::async_trait]
 //! impl lambda_runtime_types::Runner<(), (), ()> for Runner {
-//!     async fn run<'a>(shared: &'a (), event: (), region: &'a str) -> anyhow::Result<()> {
+//!     async fn run<'a>(shared: &'a (), event: (), region: &'a str, ctx: lambda_runtime_types::Context) -> anyhow::Result<()> {
 //!         // Run code on every invocation
 //!         Ok(())
 //!     }
@@ -58,7 +58,7 @@
 //!
 //! #[async_trait::async_trait]
 //! impl lambda_runtime_types::Runner<(), Event, Return> for Runner {
-//!     async fn run<'a>(shared: &'a (), event: Event, region: &'a str) -> anyhow::Result<Return> {
+//!     async fn run<'a>(shared: &'a (), event: Event, region: &'a str, ctx: lambda_runtime_types::Context) -> anyhow::Result<Return> {
 //!         println!("{:?}", event);
 //!         Ok(Return {
 //!             data: event
@@ -98,7 +98,7 @@
 //!
 //! #[async_trait::async_trait]
 //! impl lambda_runtime_types::Runner<Shared, (), ()> for Runner {
-//!     async fn run<'a>(shared: &'a Shared, event: (), region: &'a str) -> anyhow::Result<()> {
+//!     async fn run<'a>(shared: &'a Shared, event: (), region: &'a str, ctx: lambda_runtime_types::Context) -> anyhow::Result<()> {
 //!         let mut invocations = shared.invocations.lock().await;
 //!         *invocations += 1;
 //!         Ok(())
@@ -192,7 +192,7 @@ pub mod rotate;
 
 #[cfg(test)]
 use native_tls as _;
-#[cfg(all(test, target_env = "musl"))]
+#[cfg(all(target_env = "musl"))]
 use openssl as _;
 #[cfg(test)]
 use postgres_native_tls as _;
@@ -200,6 +200,8 @@ use postgres_native_tls as _;
 use simple_logger as _;
 #[cfg(test)]
 use tokio_postgres as _;
+
+pub use lambda_runtime::{Context, Config};
 
 /// Defines a type which is executed every time a lambda
 /// is invoced.
@@ -233,7 +235,7 @@ where
     /// invocations as long as they are running in the same `execution environment`
     ///
     /// More Info: <https://docs.aws.amazon.com/lambda/latest/dg/runtimes-context.html>
-    async fn run<'a>(shared: &'a Shared, event: Event, region: &'a str) -> anyhow::Result<Return>;
+    async fn run<'a>(shared: &'a Shared, event: Event, region: &'a str, ctx: Context) -> anyhow::Result<Return>;
 }
 
 /// Lambda entrypoint. This function sets up a lambda
@@ -312,7 +314,7 @@ where
     lambda_runtime::run(handler_fn(move |data, context: LContext| {
         log::info!("Received lambda invocation with event: {:?}", data);
         let deadline: u64 = context.deadline;
-        run::<_, Event, Run, Return>(shared_ref, data, Some(deadline), region_ref)
+        run::<_, Event, Run, Return>(shared_ref, data, Some(deadline), region_ref, context)
     }))
     .await
     .map_err(|e| anyhow!(e))
@@ -324,6 +326,7 @@ async fn run<Shared, Event, Run, Return>(
     event: Event,
     deadline_in_ms: Option<u64>,
     region: &str,
+    ctx: Context,
 ) -> anyhow::Result<Return>
 where
     Shared: Default + Send + Sync,
@@ -334,7 +337,7 @@ where
     use anyhow::anyhow;
     use futures::FutureExt;
 
-    let mut runner = Run::run(shared, event, region).fuse();
+    let mut runner = Run::run(shared, event, region, ctx).fuse();
     let res = if let Some(deadline_in_ms) = deadline_in_ms {
         let mut timeout = Box::pin(timeout_handler(deadline_in_ms).fuse());
         futures::select! {
@@ -426,7 +429,7 @@ where
 
             for (i, data) in test_data.invocations.into_iter().enumerate() {
                 log::info!("Starting lambda invocation: {}", i);
-                let res = run::<_, Event, Run, Return>(shared_ref, data, None, region_ref).await?;
+                let res = run::<_, Event, Run, Return>(shared_ref, data, None, region_ref, crate::Context::default()).await?;
                 log::info!("{:?}", res);
             }
             Ok(())

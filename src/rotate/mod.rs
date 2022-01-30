@@ -203,7 +203,7 @@ where
         Self::setup().await
     }
 
-    async fn run<'a>(shared: &'a Shared, event: Event<Sec>, region: &'a str) -> anyhow::Result<()> {
+    async fn run<'a>(shared: &'a Shared, event: Event<Sec>, region: &'a str, _ctx: crate::Context) -> anyhow::Result<()> {
         use anyhow::Context;
         use std::str::FromStr;
 
