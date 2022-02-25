@@ -1,0 +1,9 @@
+{
+  "dockerFile": "Dockerfile",
+  "mounts": [
+    "source=${localEnv:HOME}/.gnupg,target=/home/exec/.gnupg,type=bind,consistency=cached",
+    "source=${localWorkspaceFolder}/.devcontainer/.bash_history,target=/home/exec/.bash_history,type=bind,consistency=cached"
+  ],
+  "containerUser": "exec",
+  "runArgs": ["--rm", "--tty"]
+}

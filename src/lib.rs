@@ -201,7 +201,7 @@ use simple_logger as _;
 #[cfg(test)]
 use tokio_postgres as _;
 
-pub use lambda_runtime::{Context, Config};
+pub use lambda_runtime::{Config, Context};
 
 /// Defines a type which is executed every time a lambda
 /// is invoced.
@@ -235,7 +235,12 @@ where
     /// invocations as long as they are running in the same `execution environment`
     ///
     /// More Info: <https://docs.aws.amazon.com/lambda/latest/dg/runtimes-context.html>
-    async fn run<'a>(shared: &'a Shared, event: Event, region: &'a str, ctx: Context) -> anyhow::Result<Return>;
+    async fn run<'a>(
+        shared: &'a Shared,
+        event: Event,
+        region: &'a str,
+        ctx: Context,
+    ) -> anyhow::Result<Return>;
 }
 
 /// Lambda entrypoint. This function sets up a lambda
@@ -302,7 +307,7 @@ where
     Return: serde::Serialize,
 {
     use anyhow::{anyhow, Context};
-    use lambda_runtime::{handler_fn, Context as LContext};
+    use lambda_runtime::{service_fn, LambdaEvent};
     use std::env;
 
     Run::setup().await?;
@@ -311,10 +316,10 @@ where
     let region_ref = &region;
     let shared = Shared::default();
     let shared_ref = &shared;
-    lambda_runtime::run(handler_fn(move |data, context: LContext| {
+    lambda_runtime::run(service_fn(move |data: LambdaEvent<Event>| {
         log::info!("Received lambda invocation with event: {:?}", data);
-        let deadline: u64 = context.deadline;
-        run::<_, Event, Run, Return>(shared_ref, data, Some(deadline), region_ref, context)
+        let deadline: u64 = data.context.deadline;
+        run::<_, Event, Run, Return>(shared_ref, data, Some(deadline), region_ref)
     }))
     .await
     .map_err(|e| anyhow!(e))
@@ -323,10 +328,9 @@ where
 #[allow(clippy::unit_arg)]
 async fn run<Shared, Event, Run, Return>(
     shared: &Shared,
-    event: Event,
+    event: lambda_runtime::LambdaEvent<Event>,
     deadline_in_ms: Option<u64>,
     region: &str,
-    ctx: Context,
 ) -> anyhow::Result<Return>
 where
     Shared: Default + Send + Sync,
@@ -337,7 +341,7 @@ where
     use anyhow::anyhow;
     use futures::FutureExt;
 
-    let mut runner = Run::run(shared, event, region, ctx).fuse();
+    let mut runner = Run::run(shared, event.payload, region, event.context).fuse();
     let res = if let Some(deadline_in_ms) = deadline_in_ms {
         let mut timeout = Box::pin(timeout_handler(deadline_in_ms).fuse());
         futures::select! {
@@ -429,7 +433,16 @@ where
 
             for (i, data) in test_data.invocations.into_iter().enumerate() {
                 log::info!("Starting lambda invocation: {}", i);
-                let res = run::<_, Event, Run, Return>(shared_ref, data, None, region_ref, crate::Context::default()).await?;
+                let res = run::<_, Event, Run, Return>(
+                    shared_ref,
+                    lambda_runtime::LambdaEvent {
+                        payload: data,
+                        context: crate::Context::default(),
+                    },
+                    None,
+                    region_ref,
+                )
+                .await?;
                 log::info!("{:?}", res);
             }
             Ok(())

@@ -18,7 +18,12 @@ struct Runner;
 
 #[async_trait::async_trait]
 impl lambda_runtime_types::Runner<Shared, Event, Return> for Runner {
-    async fn run<'a>(shared: &'a Shared, event: Event, _region: &'a str, _ctx: lambda_runtime::Context) -> anyhow::Result<Return> {
+    async fn run<'a>(
+        shared: &'a Shared,
+        event: Event,
+        _region: &'a str,
+        _ctx: lambda_runtime::Context,
+    ) -> anyhow::Result<Return> {
         log::info!("{:?}", event);
         let mut prev_value = shared.prev_value.lock().await;
         let this_value = event

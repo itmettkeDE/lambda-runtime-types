@@ -7,7 +7,12 @@ struct Runner;
 
 #[async_trait::async_trait]
 impl lambda_runtime_types::Runner<(), Event, ()> for Runner {
-    async fn run<'a>(_shared: &'a (), event: Event, _region: &'a str, _ctx: lambda_runtime_types::Context) -> anyhow::Result<()> {
+    async fn run<'a>(
+        _shared: &'a (),
+        event: Event,
+        _region: &'a str,
+        _ctx: lambda_runtime_types::Context,
+    ) -> anyhow::Result<()> {
         let timeout_secs = event.timeout_secs.unwrap_or(60);
         let timeout = tokio::time::Duration::from_secs(timeout_secs);
         tokio::time::sleep(timeout).await;

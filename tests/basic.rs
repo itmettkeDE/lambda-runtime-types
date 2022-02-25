@@ -13,7 +13,12 @@ struct Runner;
 
 #[async_trait::async_trait]
 impl lambda_runtime_types::Runner<(), Event, Return> for Runner {
-    async fn run<'a>(_shared: &'a (), event: Event, _region: &'a str, _ctx: lambda_runtime::Context) -> anyhow::Result<Return> {
+    async fn run<'a>(
+        _shared: &'a (),
+        event: Event,
+        _region: &'a str,
+        _ctx: lambda_runtime::Context,
+    ) -> anyhow::Result<Return> {
         log::info!("{:?}", event);
         Ok(Return {
             data: event
