@@ -17,6 +17,7 @@ rustdoc-args = ["--cfg", "docsrs"]
 
 [features]
 default = ["rotate_with_preserve"]
+rotate_aws_sdk = ["aws-config", "aws-sdk-secretsmanager", "_rotate"]
 rotate_rusoto = ["rusoto_core", "rusoto_secretsmanager", "_rotate"]
 rotate_with_preserve = []
 test = ["serde_json"]
@@ -33,6 +34,8 @@ log = "0.4"
 serde = { version = "1", features = ["derive"] }
 tokio = "1"
 
+aws-config = { version = "0.8", features = ["rustls"], optional = true }
+aws-sdk-secretsmanager = { version = "0.8", features = ["rustls"], optional = true }
 rusoto_core = { version = "0.47", default-features = false, features = ["rustls"], optional = true }
 rusoto_secretsmanager = { version = "0.47", default-features = false, features = ["rustls"], optional = true }
 serde_json = { version = "1", optional = true }

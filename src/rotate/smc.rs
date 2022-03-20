@@ -1,5 +1,8 @@
 /// Secret returned by Secret Manager
-#[cfg_attr(docsrs, doc(cfg(any(feature = "rotate_rusoto"))))]
+#[cfg_attr(
+    docsrs,
+    doc(cfg(any(feature = "rotate_rusoto", feature = "rotate_aws_sdk")))
+)]
 #[derive(Debug, Clone)]
 pub struct Secret<S> {
     /// Arn to the secret
@@ -12,7 +15,10 @@ pub struct Secret<S> {
 
 /// Transparent container to inner value.
 /// Prevents accidental override of values not defined by `S`
-#[cfg_attr(docsrs, doc(cfg(any(feature = "rotate_rusoto"))))]
+#[cfg_attr(
+    docsrs,
+    doc(cfg(any(feature = "rotate_rusoto", feature = "rotate_aws_sdk")))
+)]
 #[derive(Debug, Clone, serde::Deserialize, serde::Serialize)]
 pub struct SecretContainer<S> {
     /// Secret data as defined by `S`
@@ -42,11 +48,16 @@ impl<S> std::ops::DerefMut for SecretContainer<S> {
 }
 
 /// Secret Manager Client
-#[cfg_attr(docsrs, doc(cfg(any(feature = "rotate_rusoto"))))]
+#[cfg_attr(
+    docsrs,
+    doc(cfg(any(feature = "rotate_rusoto", feature = "rotate_aws_sdk")))
+)]
 #[derive(Clone)]
 pub struct Smc {
+    #[cfg(feature = "rotate_aws_sdk")]
+    aws_sdk_client: super::aws_sdk::SmcClient,
     #[cfg(feature = "rotate_rusoto")]
-    client: super::rusoto::SmcClient,
+    rusoto_client: super::rusoto::SmcClient,
 }
 
 impl std::fmt::Debug for Smc {
@@ -57,10 +68,13 @@ impl std::fmt::Debug for Smc {
 
 impl Smc {
     /// Create a new secret manager client
-    pub fn new(region: &str) -> anyhow::Result<Self> {
-        #[cfg(feature = "rotate_rusoto")]
-        let client = super::rusoto::SmcClient::new(region)?;
-        Ok(Self { client })
+    pub async fn new(_region: &str) -> anyhow::Result<Self> {
+        Ok(Self {
+            #[cfg(feature = "rotate_aws_sdk")]
+            aws_sdk_client: super::aws_sdk::SmcClient::new().await,
+            #[cfg(feature = "rotate_rusoto")]
+            rusoto_client: super::rusoto::SmcClient::new(_region)?,
+        })
     }
 
     /// Generate a new password
@@ -69,7 +83,14 @@ impl Smc {
         puncutation: bool,
         length: Option<i64>,
     ) -> anyhow::Result<String> {
-        self.client.generate_new_password(puncutation, length).await
+        #[cfg(all(feature = "rotate_aws_sdk", not(feature = "rotate_rusoto")))]
+        let client = &self.aws_sdk_client;
+        #[cfg(all(feature = "rotate_rusoto", not(feature = "rotate_aws_sdk")))]
+        let client = &self.rusoto_client;
+        #[cfg(all(feature = "rotate_rusoto", feature = "rotate_aws_sdk"))]
+        compile_error("Only rotate_rusoto or rotate_aws_sdk can be enabled at once");
+
+        client.generate_new_password(puncutation, length).await
     }
 
     /// Fetches the current secret value of the given secret_id
@@ -93,7 +114,14 @@ impl Smc {
         secret_id: &str,
         version_stage: &str,
     ) -> anyhow::Result<Secret<S>> {
-        self.client.get_secret_value(secret_id, version_stage).await
+        #[cfg(all(feature = "rotate_aws_sdk", not(feature = "rotate_rusoto")))]
+        let client = &self.aws_sdk_client;
+        #[cfg(all(feature = "rotate_rusoto", not(feature = "rotate_aws_sdk")))]
+        let client = &self.rusoto_client;
+        #[cfg(all(feature = "rotate_rusoto", feature = "rotate_aws_sdk"))]
+        compile_error("Only rotate_rusoto or rotate_aws_sdk can be enabled at once");
+
+        client.get_secret_value(secret_id, version_stage).await
     }
 
     pub(crate) async fn put_secret_value_pending<S: serde::Serialize + Send + Sync>(
@@ -104,9 +132,16 @@ impl Smc {
     ) -> anyhow::Result<()> {
         use anyhow::Context;
 
+        #[cfg(all(feature = "rotate_aws_sdk", not(feature = "rotate_rusoto")))]
+        let client = &self.aws_sdk_client;
+        #[cfg(all(feature = "rotate_rusoto", not(feature = "rotate_aws_sdk")))]
+        let client = &self.rusoto_client;
+        #[cfg(all(feature = "rotate_rusoto", feature = "rotate_aws_sdk"))]
+        compile_error("Only rotate_rusoto or rotate_aws_sdk can be enabled at once");
+
         let secret_string: String = serde_json::to_string(value)
             .with_context(|| format!("Unable to serialize secret_value with id: {}", secret_id))?;
-        self.client
+        client
             .put_secret_value_pending(secret_id, request_token, &secret_string)
             .await
     }
@@ -117,7 +152,14 @@ impl Smc {
         secret_current_version_id: String,
         secret_pending_version_id: String,
     ) -> anyhow::Result<()> {
-        self.client
+        #[cfg(all(feature = "rotate_aws_sdk", not(feature = "rotate_rusoto")))]
+        let client = &self.aws_sdk_client;
+        #[cfg(all(feature = "rotate_rusoto", not(feature = "rotate_aws_sdk")))]
+        let client = &self.rusoto_client;
+        #[cfg(all(feature = "rotate_rusoto", feature = "rotate_aws_sdk"))]
+        compile_error("Only rotate_rusoto or rotate_aws_sdk can be enabled at once");
+
+        client
             .set_pending_secret_value_to_current(
                 secret_arn,
                 secret_current_version_id,

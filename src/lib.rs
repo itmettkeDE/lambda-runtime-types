@@ -146,7 +146,10 @@
 #![cfg_attr(docsrs, feature(doc_cfg, doc_auto_cfg))]
 
 #[cfg(feature = "_rotate")]
-#[cfg_attr(docsrs, doc(cfg(any(feature = "rotate_rusoto"))))]
+#[cfg_attr(
+    docsrs,
+    doc(cfg(any(feature = "rotate_rusoto", feature = "rotate_aws_sdk")))
+)]
 pub mod rotate;
 
 #[cfg(test)]

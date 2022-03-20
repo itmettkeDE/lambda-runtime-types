@@ -70,6 +70,8 @@
 //!
 //! For further usage like `Shared` Data, refer to the main [documentation](`crate`)
 
+#[cfg(feature = "rotate_aws_sdk")]
+mod aws_sdk;
 #[cfg(feature = "rotate_rusoto")]
 mod rusoto;
 mod smc;
@@ -77,7 +79,10 @@ mod smc;
 pub use smc::{SecretContainer, Smc};
 
 /// `Event` which is send by the `SecretManager` to the rotation lambda
-#[cfg_attr(docsrs, doc(cfg(any(feature = "rotate_rusoto"))))]
+#[cfg_attr(
+    docsrs,
+    doc(cfg(any(feature = "rotate_rusoto", feature = "rotate_aws_sdk")))
+)]
 #[derive(Clone, serde::Deserialize)]
 pub struct Event<Secret> {
     /// Request Token used for `SecretManager` Operations
@@ -105,7 +110,10 @@ impl<Secret> std::fmt::Debug for Event<Secret> {
 }
 
 /// Available steps for in a Secret Manager rotation
-#[cfg_attr(docsrs, doc(cfg(any(feature = "rotate_rusoto"))))]
+#[cfg_attr(
+    docsrs,
+    doc(cfg(any(feature = "rotate_rusoto", feature = "rotate_aws_sdk")))
+)]
 #[derive(Debug, Copy, Clone, serde::Deserialize)]
 pub enum Step {
     /// Secret creation
@@ -139,7 +147,10 @@ pub enum Step {
 ///             the `SecretManager`. May contain only
 ///             necessary fields, as other undefined
 ///             fields are internally preserved.
-#[cfg_attr(docsrs, doc(cfg(any(feature = "rotate_rusoto"))))]
+#[cfg_attr(
+    docsrs,
+    doc(cfg(any(feature = "rotate_rusoto", feature = "rotate_aws_sdk")))
+)]
 #[async_trait::async_trait]
 pub trait RotateRunner<'a, Shared, Secret>
 where
@@ -198,7 +209,7 @@ where
         shared: &'a Shared,
         event: crate::LambdaEvent<'a, Event<Sec>>,
     ) -> anyhow::Result<()> {
-        let smc = Smc::new(event.region)?;
+        let smc = Smc::new(event.region).await?;
         log::info!("{:?}", event.event.step);
         match event.event.step {
             Step::Create => {
