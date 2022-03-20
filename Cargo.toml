@@ -1,11 +1,11 @@
 [package]
 name = "lambda-runtime-types"
-version = "0.5.0"
+version = "0.6.0"
 authors = ["Marc Mettke <marc@itmettke.de>"]
 edition = "2021"
 description = "Common structures for lambda architecture"
 license = "MIT OR Apache-2.0"
-repository = "https://github.com/mettke/lambda_runtime_types"
+repository = "https://github.com/itmettkeDE/lambda-runtime-types"
 readme = "./README.md"
 keywords = ["lambda", "types"]
 categories = ["data-structures"]
@@ -17,9 +17,12 @@ rustdoc-args = ["--cfg", "docsrs"]
 
 [features]
 default = ["rotate_with_preserve"]
-rotate = ["rusoto_core", "rusoto_secretsmanager", "serde_json"]
+rotate_rusoto = ["rusoto_core", "rusoto_secretsmanager", "_rotate"]
 rotate_with_preserve = []
 test = ["serde_json"]
+
+# Do not use directly
+_rotate = ["serde_json"]
 
 [dependencies]
 anyhow = "1"
@@ -30,20 +33,16 @@ log = "0.4"
 serde = { version = "1", features = ["derive"] }
 tokio = "1"
 
-rusoto_core = { version = "0.47", optional = true }
-rusoto_secretsmanager = { version = "0.47", optional = true }
+rusoto_core = { version = "0.47", default-features = false, features = ["rustls"], optional = true }
+rusoto_secretsmanager = { version = "0.47", default-features = false, features = ["rustls"], optional = true }
 serde_json = { version = "1", optional = true }
 
 [dev-dependencies]
 native-tls = "0.2"
 postgres-native-tls = "0.5"
 simple_logger = "2"
-serde_json = "1"
 tokio-postgres = "0.7"
-
-[target.x86_64-unknown-linux-musl.dependencies]
-openssl = { version = '0.10', features = ["vendored"] }
 
 [[example]]
 name = "test_postgres_rotation"
-required-features = ["rotate"]
+required-features = ["rotate_rusoto"]

@@ -12,17 +12,16 @@
 //! struct Runner;
 //!
 //! #[async_trait::async_trait]
-//! impl lambda_runtime_types::rotate::RotateRunner<(), Secret> for Runner {
-//!     async fn setup() -> anyhow::Result<()> {
+//! impl<'a> lambda_runtime_types::rotate::RotateRunner<'a, (), Secret> for Runner {
+//!     async fn setup(region: &'a str) -> anyhow::Result<()> {
 //!         // Setup logging to make sure that errors are printed
 //!         Ok(())
 //!     }
 //!
 //!     async fn create(
-//!         shared: &(),
+//!         shared: &'a (),
 //!         secret_cur: lambda_runtime_types::rotate::SecretContainer<Secret>,
 //!         smc: &lambda_runtime_types::rotate::Smc,
-//!         region: &str,
 //!     ) -> anyhow::Result<lambda_runtime_types::rotate::SecretContainer<Secret>> {
 //!         // Create a new secret without setting it yet.
 //!         // Only called if there is no pending secret available
@@ -31,10 +30,9 @@
 //!     }
 //!
 //!     async fn set(
-//!         shared: &(),
+//!         shared: &'a (),
 //!         secret_cur: lambda_runtime_types::rotate::SecretContainer<Secret>,
 //!         secret_new: lambda_runtime_types::rotate::SecretContainer<Secret>,
-//!         region: &str,
 //!     ) -> anyhow::Result<()> {
 //!         // Set the secret in the service
 //!         // Only called if password is not already set, checked by  
@@ -46,19 +44,17 @@
 //!     }
 //!
 //!     async fn test(
-//!         shared: &(),
+//!         shared: &'a (),
 //!         secret_new: lambda_runtime_types::rotate::SecretContainer<Secret>,
-//!         region: &str,
 //!     ) -> anyhow::Result<()> {
 //!         // Test whether a connection with the given secret works
 //!         Ok(())
 //!     }
 //!
 //!     async fn finish(
-//!         shared: &(),
+//!         shared: &'a (),
 //!         secret_cur: lambda_runtime_types::rotate::SecretContainer<Secret>,
 //!         secret_new: lambda_runtime_types::rotate::SecretContainer<Secret>,
-//!         region: &str,
 //!     ) -> anyhow::Result<()> {
 //!         // Optional: Perform any work which may be necessary to
 //!         // complete rotation
@@ -74,12 +70,14 @@
 //!
 //! For further usage like `Shared` Data, refer to the main [documentation](`crate`)
 
+#[cfg(feature = "rotate_rusoto")]
+mod rusoto;
 mod smc;
 
-pub use smc::{Secret, SecretContainer, Smc};
+pub use smc::{SecretContainer, Smc};
 
 /// `Event` which is send by the `SecretManager` to the rotation lambda
-#[cfg_attr(docsrs, doc(cfg(feature = "rotate")))]
+#[cfg_attr(docsrs, doc(cfg(any(feature = "rotate_rusoto"))))]
 #[derive(Clone, serde::Deserialize)]
 pub struct Event<Secret> {
     /// Request Token used for `SecretManager` Operations
@@ -107,7 +105,7 @@ impl<Secret> std::fmt::Debug for Event<Secret> {
 }
 
 /// Available steps for in a Secret Manager rotation
-#[cfg_attr(docsrs, doc(cfg(feature = "rotate")))]
+#[cfg_attr(docsrs, doc(cfg(any(feature = "rotate_rusoto"))))]
 #[derive(Debug, Copy, Clone, serde::Deserialize)]
 pub enum Step {
     /// Secret creation
@@ -141,24 +139,23 @@ pub enum Step {
 ///             the `SecretManager`. May contain only
 ///             necessary fields, as other undefined
 ///             fields are internally preserved.
-#[cfg_attr(docsrs, doc(cfg(feature = "rotate")))]
+#[cfg_attr(docsrs, doc(cfg(any(feature = "rotate_rusoto"))))]
 #[async_trait::async_trait]
-pub trait RotateRunner<Shared, Secret>
+pub trait RotateRunner<'a, Shared, Secret>
 where
-    Shared: Default + Send + Sync,
+    Shared: Send + Sync + 'a,
     Secret: 'static + Send,
 {
     /// See documentation of [`super::Runner::setup`]
-    async fn setup() -> anyhow::Result<()>;
+    async fn setup(region: &'a str) -> anyhow::Result<Shared>;
 
     /// Create a new secret without setting it yet.
     /// Only called if there is no pending secret available
     /// (which may happen if rotation fails at any stage)
     async fn create(
-        shared: &Shared,
+        shared: &'a Shared,
         secret_cur: SecretContainer<Secret>,
         smc: &Smc,
-        region: &str,
     ) -> anyhow::Result<SecretContainer<Secret>>;
 
     /// Set the secret in the service
@@ -168,60 +165,49 @@ where
     /// stages are called again with set failing as the old password
     /// does not work anymore
     async fn set(
-        shared: &Shared,
+        shared: &'a Shared,
         secret_cur: SecretContainer<Secret>,
         secret_new: SecretContainer<Secret>,
-        region: &str,
     ) -> anyhow::Result<()>;
 
     /// Test whether a connection with the given secret works
-    async fn test(
-        shared: &Shared,
-        secret_new: SecretContainer<Secret>,
-        region: &str,
-    ) -> anyhow::Result<()>;
+    async fn test(shared: &'a Shared, secret_new: SecretContainer<Secret>) -> anyhow::Result<()>;
 
     /// Perform any work which may be necessary to complete rotation
     async fn finish(
-        _shared: &Shared,
+        _shared: &'a Shared,
         _secret_cur: SecretContainer<Secret>,
         _secret_new: SecretContainer<Secret>,
-        _region: &str,
     ) -> anyhow::Result<()> {
         Ok(())
     }
 }
 
 #[async_trait::async_trait]
-impl<Type, Shared, Sec> super::Runner<Shared, Event<Sec>, ()> for Type
+impl<'a, Type, Shared, Sec> super::Runner<'a, Shared, Event<Sec>, ()> for Type
 where
-    Shared: Default + Send + Sync,
+    Shared: Send + Sync + 'a,
     Sec: 'static + Send + Sync + Clone + serde::de::DeserializeOwned + serde::Serialize,
-    Type: 'static + RotateRunner<Shared, Sec>,
+    Type: 'static + RotateRunner<'a, Shared, Sec>,
 {
-    async fn setup() -> anyhow::Result<()> {
-        Self::setup().await
+    async fn setup(region: &'a str) -> anyhow::Result<Shared> {
+        Self::setup(region).await
     }
 
-    async fn run<'a>(
+    async fn run(
         shared: &'a Shared,
-        event: Event<Sec>,
-        region: &'a str,
-        _ctx: crate::Context,
+        event: crate::LambdaEvent<'a, Event<Sec>>,
     ) -> anyhow::Result<()> {
-        use anyhow::Context;
-        use std::str::FromStr;
-
-        let smc = Smc::new(
-            rusoto_core::Region::from_str(region).context("invalid region given to lambda")?,
-        );
-        log::info!("{:?}", event.step);
-        match event.step {
+        let smc = Smc::new(event.region)?;
+        log::info!("{:?}", event.event.step);
+        match event.event.step {
             Step::Create => {
                 let secret_cur = smc
-                    .get_secret_value_current::<Sec>(&event.secret_id)
+                    .get_secret_value_current::<Sec>(&event.event.secret_id)
                     .await?;
-                let secret_new = smc.get_secret_value_pending::<Sec>(&event.secret_id).await;
+                let secret_new = smc
+                    .get_secret_value_pending::<Sec>(&event.event.secret_id)
+                    .await;
                 if let Ok(secret_new) = secret_new {
                     if secret_new.version_id != secret_cur.version_id {
                         log::info!("Found existing pending value.");
@@ -229,10 +215,10 @@ where
                     }
                 }
                 log::info!("Creating new secret value.");
-                let secret = Self::create(shared, secret_cur.inner, &smc, region).await?;
+                let secret = Self::create(shared, secret_cur.inner, &smc).await?;
                 smc.put_secret_value_pending(
-                    &event.secret_id,
-                    Some(&event.client_request_token),
+                    &event.event.secret_id,
+                    Some(&event.event.client_request_token),
                     &secret,
                 )
                 .await?;
@@ -240,13 +226,19 @@ where
             }
             Step::Set => {
                 log::info!("Setting secret on remote system.");
-                let secret_new = smc.get_secret_value_pending(&event.secret_id).await?.inner;
-                if Self::test(shared, SecretContainer::clone(&secret_new), region)
+                let secret_new = smc
+                    .get_secret_value_pending(&event.event.secret_id)
+                    .await?
+                    .inner;
+                if Self::test(shared, SecretContainer::clone(&secret_new))
                     .await
                     .is_err()
                 {
-                    let secret_cur = smc.get_secret_value_current(&event.secret_id).await?.inner;
-                    Self::set(shared, secret_cur, secret_new, region).await?;
+                    let secret_cur = smc
+                        .get_secret_value_current(&event.event.secret_id)
+                        .await?
+                        .inner;
+                    Self::set(shared, secret_cur, secret_new).await?;
                 } else {
                     log::info!("Password already set in remote system.");
                 }
@@ -254,17 +246,20 @@ where
             }
             Step::Test => {
                 log::info!("Testing secret on remote system.");
-                let secret = smc.get_secret_value_pending(&event.secret_id).await?.inner;
-                Self::test(shared, secret, region).await?;
+                let secret = smc
+                    .get_secret_value_pending(&event.event.secret_id)
+                    .await?
+                    .inner;
+                Self::test(shared, secret).await?;
                 Ok(())
             }
             Step::Finish => {
                 log::info!("Finishing secret deployment.");
-                let secret_current: Secret<Sec> =
-                    smc.get_secret_value_current(&event.secret_id).await?;
-                let secret_pending: Secret<Sec> =
-                    smc.get_secret_value_pending(&event.secret_id).await?;
-                Self::finish(shared, secret_current.inner, secret_pending.inner, region).await?;
+                let secret_current: smc::Secret<Sec> =
+                    smc.get_secret_value_current(&event.event.secret_id).await?;
+                let secret_pending: smc::Secret<Sec> =
+                    smc.get_secret_value_pending(&event.event.secret_id).await?;
+                Self::finish(shared, secret_current.inner, secret_pending.inner).await?;
                 smc.set_pending_secret_value_to_current(
                     secret_current.arn,
                     secret_current.version_id,

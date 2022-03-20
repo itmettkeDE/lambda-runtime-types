@@ -14,13 +14,13 @@ then use it either in the [`exec`] or [`exec_tokio`] function:
 struct Runner;
 
 #[async_trait::async_trait]
-impl lambda_runtime_types::Runner<(), (), ()> for Runner {
-    async fn run<'a>(shared: &'a (), event: (), region: &'a str) -> anyhow::Result<()> {
+impl<'a> lambda_runtime_types::Runner<'a, (), (), ()> for Runner {
+    async fn run(shared: &'a (), event: lambda_runtime_types::LambdaEvent<'a, ()>) -> anyhow::Result<()> {
         // Run code on every invocation
         Ok(())
     }
 
-    async fn setup() -> anyhow::Result<()> {
+    async fn setup(_region: &'a str) -> anyhow::Result<()> {
         // Setup logging to make sure that errors are printed
         Ok(())
     }
@@ -37,7 +37,7 @@ There are various modules which predefined Event and Return types and Runner tra
 specialised for differnet lambda usages. Check out the modules for examples or their
 usage.
 
-* [`rotate`]
+- [`rotate`]
 
 ## Custom Event and Return types
 
@@ -59,11 +59,12 @@ struct Return {
 struct Runner;
 
 #[async_trait::async_trait]
-impl lambda_runtime_types::Runner<(), Event, Return> for Runner {
-    async fn run<'a>(shared: &'a (), event: Event, region: &'a str) -> anyhow::Result<Return> {
+impl<'a> lambda_runtime_types::Runner<'a, (), Event, Return> for Runner {
+    async fn run(shared: &'a (), event: lambda_runtime_types::LambdaEvent<'a, Event>) -> anyhow::Result<Return> {
         println!("{:?}", event);
         Ok(Return {
             data: event
+                .event
                 .attributes
                 .get("test")
                 .and_then(|a| a.as_str())
@@ -73,7 +74,7 @@ impl lambda_runtime_types::Runner<(), Event, Return> for Runner {
         })
     }
 
-    async fn setup() -> anyhow::Result<()> {
+    async fn setup(_region: &'a str) -> anyhow::Result<()> {
         // Setup logging to make sure that errors are printed
         Ok(())
     }
@@ -99,16 +100,16 @@ struct Shared  {
 struct Runner;
 
 #[async_trait::async_trait]
-impl lambda_runtime_types::Runner<Shared, (), ()> for Runner {
-    async fn run<'a>(shared: &'a Shared, event: (), region: &'a str) -> anyhow::Result<()> {
+impl<'a> lambda_runtime_types::Runner<'a, Shared, (), ()> for Runner {
+    async fn run(shared: &'a Shared, event: lambda_runtime_types::LambdaEvent<'a, ()>) -> anyhow::Result<()> {
         let mut invocations = shared.invocations.lock().await;
         *invocations += 1;
         Ok(())
     }
 
-    async fn setup() -> anyhow::Result<()> {
+    async fn setup(_region: &'a str) -> anyhow::Result<Shared> {
         // Setup logging to make sure that errors are printed
-        Ok(())
+        Ok(Shared::default())
     }
 }
 
@@ -140,6 +141,5 @@ possible in rust to check the current memory usage. Therefore it is also not pos
 fail before running into OOF. When running lambdas, it may be necessary to setup checks to
 verify that a lambda completed successfully, and did not run into OOF, as these errors also
 do not get propagated to `on_error` destinations.
-
 
 License: MIT OR Apache-2.0

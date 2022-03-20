@@ -1,10 +1,14 @@
 {
-    "region": "eu-central-1",
-    "invocations": [{
-        "test": "test"
-    }, {
-        "test": "test"
-    }, {
-        "test": "test2"
-    }]
+  "region": "eu-central-1",
+  "invocations": [
+    {
+      "test": "test"
+    },
+    {
+      "test": "test"
+    },
+    {
+      "test": "test2"
+    }
+  ]
 }

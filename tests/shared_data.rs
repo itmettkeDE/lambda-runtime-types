@@ -17,16 +17,15 @@ struct Return {
 struct Runner;
 
 #[async_trait::async_trait]
-impl lambda_runtime_types::Runner<Shared, Event, Return> for Runner {
-    async fn run<'a>(
+impl<'a> lambda_runtime_types::Runner<'a, Shared, Event, Return> for Runner {
+    async fn run(
         shared: &'a Shared,
-        event: Event,
-        _region: &'a str,
-        _ctx: lambda_runtime::Context,
+        event: lambda_runtime_types::LambdaEvent<'a, Event>,
     ) -> anyhow::Result<Return> {
         log::info!("{:?}", event);
         let mut prev_value = shared.prev_value.lock().await;
         let this_value = event
+            .event
             .attributes
             .get("test")
             .and_then(|a| a.as_str())
@@ -37,12 +36,12 @@ impl lambda_runtime_types::Runner<Shared, Event, Return> for Runner {
         Ok(Return { matches_prev })
     }
 
-    async fn setup() -> anyhow::Result<()> {
+    async fn setup(_region: &'a str) -> anyhow::Result<Shared> {
         simple_logger::SimpleLogger::new()
             .with_level(log::LevelFilter::Info)
             .init()
             .expect("Unable to setup logging");
-        Ok(())
+        Ok(Shared::default())
     }
 }
 

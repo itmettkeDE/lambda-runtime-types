@@ -10,8 +10,8 @@ struct Secret {
 struct Runner;
 
 #[async_trait::async_trait]
-impl lambda_runtime_types::rotate::RotateRunner<(), Secret> for Runner {
-    async fn setup() -> anyhow::Result<()> {
+impl<'a> lambda_runtime_types::rotate::RotateRunner<'a, (), Secret> for Runner {
+    async fn setup(_region: &'a str) -> anyhow::Result<()> {
         simple_logger::SimpleLogger::new()
             .with_level(log::LevelFilter::Info)
             .init()
@@ -20,10 +20,9 @@ impl lambda_runtime_types::rotate::RotateRunner<(), Secret> for Runner {
     }
 
     async fn create(
-        _shared: &(),
+        _shared: &'a (),
         mut secret_cur: lambda_runtime_types::rotate::SecretContainer<Secret>,
         smc: &lambda_runtime_types::rotate::Smc,
-        _region: &str,
     ) -> anyhow::Result<lambda_runtime_types::rotate::SecretContainer<Secret>> {
         let password = smc.generate_new_password(false, None).await?;
         secret_cur.password = password;
@@ -31,10 +30,9 @@ impl lambda_runtime_types::rotate::RotateRunner<(), Secret> for Runner {
     }
 
     async fn set(
-        _shared: &(),
+        _shared: &'a (),
         secret_cur: lambda_runtime_types::rotate::SecretContainer<Secret>,
         secret_new: lambda_runtime_types::rotate::SecretContainer<Secret>,
-        _region: &str,
     ) -> anyhow::Result<()> {
         PgDatabase::new(&secret_cur)
             .await?
@@ -43,9 +41,8 @@ impl lambda_runtime_types::rotate::RotateRunner<(), Secret> for Runner {
     }
 
     async fn test(
-        _shared: &(),
+        _shared: &'a (),
         secret_new: lambda_runtime_types::rotate::SecretContainer<Secret>,
-        _region: &str,
     ) -> anyhow::Result<()> {
         PgDatabase::new(&secret_new).await?.test_connection().await
     }

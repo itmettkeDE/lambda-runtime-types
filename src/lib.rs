@@ -12,13 +12,13 @@
 //! struct Runner;
 //!
 //! #[async_trait::async_trait]
-//! impl lambda_runtime_types::Runner<(), (), ()> for Runner {
-//!     async fn run<'a>(shared: &'a (), event: (), region: &'a str, ctx: lambda_runtime_types::Context) -> anyhow::Result<()> {
+//! impl<'a> lambda_runtime_types::Runner<'a, (), (), ()> for Runner {
+//!     async fn run(shared: &'a (), event: lambda_runtime_types::LambdaEvent<'a, ()>) -> anyhow::Result<()> {
 //!         // Run code on every invocation
 //!         Ok(())
 //!     }
 //!
-//!     async fn setup() -> anyhow::Result<()> {
+//!     async fn setup(_region: &'a str) -> anyhow::Result<()> {
 //!         // Setup logging to make sure that errors are printed
 //!         Ok(())
 //!     }
@@ -57,11 +57,12 @@
 //! struct Runner;
 //!
 //! #[async_trait::async_trait]
-//! impl lambda_runtime_types::Runner<(), Event, Return> for Runner {
-//!     async fn run<'a>(shared: &'a (), event: Event, region: &'a str, ctx: lambda_runtime_types::Context) -> anyhow::Result<Return> {
+//! impl<'a> lambda_runtime_types::Runner<'a, (), Event, Return> for Runner {
+//!     async fn run(shared: &'a (), event: lambda_runtime_types::LambdaEvent<'a, Event>) -> anyhow::Result<Return> {
 //!         println!("{:?}", event);
 //!         Ok(Return {
 //!             data: event
+//!                 .event
 //!                 .attributes
 //!                 .get("test")
 //!                 .and_then(|a| a.as_str())
@@ -71,7 +72,7 @@
 //!         })
 //!     }
 //!
-//!     async fn setup() -> anyhow::Result<()> {
+//!     async fn setup(_region: &'a str) -> anyhow::Result<()> {
 //!         // Setup logging to make sure that errors are printed
 //!         Ok(())
 //!     }
@@ -97,16 +98,16 @@
 //! struct Runner;
 //!
 //! #[async_trait::async_trait]
-//! impl lambda_runtime_types::Runner<Shared, (), ()> for Runner {
-//!     async fn run<'a>(shared: &'a Shared, event: (), region: &'a str, ctx: lambda_runtime_types::Context) -> anyhow::Result<()> {
+//! impl<'a> lambda_runtime_types::Runner<'a, Shared, (), ()> for Runner {
+//!     async fn run(shared: &'a Shared, event: lambda_runtime_types::LambdaEvent<'a, ()>) -> anyhow::Result<()> {
 //!         let mut invocations = shared.invocations.lock().await;
 //!         *invocations += 1;
 //!         Ok(())
 //!     }
 //!
-//!     async fn setup() -> anyhow::Result<()> {
+//!     async fn setup(_region: &'a str) -> anyhow::Result<Shared> {
 //!         // Setup logging to make sure that errors are printed
-//!         Ok(())
+//!         Ok(Shared::default())
 //!     }
 //! }
 //!
@@ -140,60 +141,16 @@
 //! do not get propagated to `on_error` destinations.
 //!
 
-#![warn(
-    absolute_paths_not_starting_with_crate,
-    anonymous_parameters,
-    deprecated_in_future,
-    elided_lifetimes_in_paths,
-    explicit_outlives_requirements,
-    indirect_structural_match,
-    keyword_idents,
-    macro_use_extern_crate,
-    meta_variable_misuse,
-    missing_copy_implementations,
-    rustdoc::missing_crate_level_docs,
-    missing_debug_implementations,
-    missing_docs,
-    rustdoc::missing_doc_code_examples,
-    non_ascii_idents,
-    rustdoc::private_doc_tests,
-    trivial_casts,
-    trivial_numeric_casts,
-    unaligned_references,
-    unreachable_pub,
-    unsafe_code,
-    unstable_features,
-    unused_crate_dependencies,
-    unused_extern_crates,
-    unused_import_braces,
-    unused_lifetimes,
-    unused_qualifications,
-    unused_results,
-    variant_size_differences
-)]
-#![warn(
-    clippy::correctness,
-    clippy::style,
-    clippy::complexity,
-    clippy::perf,
-    clippy::cargo,
-    clippy::nursery
-)]
-#![allow(
-    clippy::multiple_crate_versions,
-    clippy::future_not_send,
-    clippy::wildcard_dependencies
-)]
-#![cfg_attr(docsrs, feature(doc_cfg))]
+#![deny(clippy::all, clippy::nursery)]
+#![deny(nonstandard_style, rust_2018_idioms, unused_crate_dependencies)]
+#![cfg_attr(docsrs, feature(doc_cfg, doc_auto_cfg))]
 
-#[cfg(feature = "rotate")]
-#[cfg_attr(docsrs, doc(cfg(feature = "rotate")))]
+#[cfg(feature = "_rotate")]
+#[cfg_attr(docsrs, doc(cfg(any(feature = "rotate_rusoto"))))]
 pub mod rotate;
 
 #[cfg(test)]
 use native_tls as _;
-#[cfg(all(target_env = "musl"))]
-use openssl as _;
 #[cfg(test)]
 use postgres_native_tls as _;
 #[cfg(test)]
@@ -202,6 +159,20 @@ use simple_logger as _;
 use tokio_postgres as _;
 
 pub use lambda_runtime::{Config, Context};
+
+/// Types which contains all the Information relevant for
+/// the current invocation
+#[non_exhaustive]
+#[derive(Debug)]
+pub struct LambdaEvent<'a, Event> {
+    /// The expected Event which is being send
+    /// to the lambda by AWS.
+    pub event: Event,
+    /// Region the lambda is running in
+    pub region: &'a str,
+    /// Lambda Invocation Context
+    pub ctx: Context,
+}
 
 /// Defines a type which is executed every time a lambda
 /// is invoced.
@@ -220,27 +191,22 @@ pub use lambda_runtime::{Config, Context};
 /// * `Return`: Type which is the result of the lamba
 ///             invocation being returned to AWS
 #[async_trait::async_trait]
-pub trait Runner<Shared, Event, Return>
+pub trait Runner<'a, Shared, Event, Return>
 where
-    Shared: Default + Send + Sync,
+    Shared: Send + Sync + 'a,
     Event: for<'de> serde::Deserialize<'de> + std::fmt::Debug,
     Return: serde::Serialize,
 {
     /// Invoked only once before lambda runtime start. Does not get called on each
     /// lambda invocation. Can be used to setup logging and other global services,
     /// but should be short as it delays lambda startup
-    async fn setup() -> anyhow::Result<()>;
+    async fn setup(region: &'a str) -> anyhow::Result<Shared>;
 
     /// Invoked for every lambda invocation. Data in `shared` is persisted between
     /// invocations as long as they are running in the same `execution environment`
     ///
     /// More Info: <https://docs.aws.amazon.com/lambda/latest/dg/runtimes-context.html>
-    async fn run<'a>(
-        shared: &'a Shared,
-        event: Event,
-        region: &'a str,
-        ctx: Context,
-    ) -> anyhow::Result<Return>;
+    async fn run(shared: &'a Shared, event: LambdaEvent<'a, Event>) -> anyhow::Result<Return>;
 }
 
 /// Lambda entrypoint. This function sets up a lambda
@@ -265,9 +231,9 @@ where
 ///             invocation being returned to AWS
 pub fn exec_tokio<Shared, Event, Run, Return>() -> anyhow::Result<()>
 where
-    Shared: Default + Send + Sync,
-    Event: for<'de> serde::Deserialize<'de> + std::fmt::Debug,
-    Run: Runner<Shared, Event, Return>,
+    Shared: Send + Sync,
+    Event: for<'de> serde::Deserialize<'de> + std::fmt::Debug + Send,
+    Run: for<'a> Runner<'a, Shared, Event, Return>,
     Return: serde::Serialize,
 {
     use anyhow::Context;
@@ -301,23 +267,22 @@ where
 ///             invocation being returned to AWS
 pub async fn exec<Shared, Event, Run, Return>() -> anyhow::Result<()>
 where
-    Shared: Default + Send + Sync,
-    Event: for<'de> serde::Deserialize<'de> + std::fmt::Debug,
-    Run: Runner<Shared, Event, Return>,
+    Shared: Send + Sync,
+    Event: for<'de> serde::Deserialize<'de> + std::fmt::Debug + Send,
+    Run: for<'a> Runner<'a, Shared, Event, Return>,
     Return: serde::Serialize,
 {
     use anyhow::{anyhow, Context};
     use lambda_runtime::{service_fn, LambdaEvent};
     use std::env;
 
-    Run::setup().await?;
     log::info!("Starting lambda runtime");
     let region = env::var("AWS_REGION").context("Missing AWS_REGION env variable")?;
     let region_ref = &region;
-    let shared = Shared::default();
+    let shared = Run::setup(region_ref).await?;
     let shared_ref = &shared;
     lambda_runtime::run(service_fn(move |data: LambdaEvent<Event>| {
-        log::info!("Received lambda invocation with event: {:?}", data);
+        log::info!("Received lambda invocation with event: {:?}", data.payload);
         let deadline: u64 = data.context.deadline;
         run::<_, Event, Run, Return>(shared_ref, data, Some(deadline), region_ref)
     }))
@@ -326,22 +291,30 @@ where
 }
 
 #[allow(clippy::unit_arg)]
-async fn run<Shared, Event, Run, Return>(
-    shared: &Shared,
+async fn run<'a, Shared, Event, Run, Return>(
+    shared: &'a Shared,
     event: lambda_runtime::LambdaEvent<Event>,
     deadline_in_ms: Option<u64>,
-    region: &str,
+    region: &'a str,
 ) -> anyhow::Result<Return>
 where
-    Shared: Default + Send + Sync,
-    Event: for<'de> serde::Deserialize<'de> + std::fmt::Debug,
-    Run: Runner<Shared, Event, Return>,
+    Shared: Send + Sync,
+    Event: for<'de> serde::Deserialize<'de> + std::fmt::Debug + Send,
+    Run: Runner<'a, Shared, Event, Return>,
     Return: serde::Serialize,
 {
     use anyhow::anyhow;
     use futures::FutureExt;
 
-    let mut runner = Run::run(shared, event.payload, region, event.context).fuse();
+    let mut runner = Run::run(
+        shared,
+        LambdaEvent {
+            event: event.payload,
+            region,
+            ctx: event.context,
+        },
+    )
+    .fuse();
     let res = if let Some(deadline_in_ms) = deadline_in_ms {
         let mut timeout = Box::pin(timeout_handler(deadline_in_ms).fuse());
         futures::select! {
@@ -410,9 +383,9 @@ pub struct TestData<Event> {
 #[cfg_attr(docsrs, doc(cfg(feature = "test")))]
 pub fn exec_test<Shared, Event, Run, Return>(test_data: &str) -> anyhow::Result<()>
 where
-    Shared: Default + Send + Sync,
-    Event: for<'de> serde::Deserialize<'de> + std::fmt::Debug,
-    Run: Runner<Shared, Event, Return>,
+    Shared: Send + Sync,
+    Event: for<'de> serde::Deserialize<'de> + std::fmt::Debug + Send,
+    Run: for<'a> Runner<'a, Shared, Event, Return>,
     Return: serde::Serialize + std::fmt::Debug,
 {
     use anyhow::Context;
@@ -423,13 +396,12 @@ where
         .build()
         .context("Unable to build tokio runtime")?
         .block_on(async {
-            Run::setup().await?;
             log::info!("Starting lambda test runtime");
             let test_data: TestData<Event> =
                 serde_json::from_str(test_data).context("Unable to deserialize test_data")?;
-            let shared = Shared::default();
-            let shared_ref = &shared;
             let region_ref = &test_data.region;
+            let shared = Run::setup(region_ref).await?;
+            let shared_ref = &shared;
 
             for (i, data) in test_data.invocations.into_iter().enumerate() {
                 log::info!("Starting lambda invocation: {}", i);

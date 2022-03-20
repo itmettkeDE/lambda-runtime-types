@@ -6,24 +6,22 @@ struct Shared {
 struct Runner;
 
 #[async_trait::async_trait]
-impl lambda_runtime_types::Runner<Shared, (), u64> for Runner {
-    async fn run<'a>(
+impl<'a> lambda_runtime_types::Runner<'a, Shared, (), u64> for Runner {
+    async fn run(
         shared: &'a Shared,
-        _event: (),
-        _region: &'a str,
-        _ctx: lambda_runtime_types::Context,
+        _event: lambda_runtime_types::LambdaEvent<'a, ()>,
     ) -> anyhow::Result<u64> {
         let mut invocations = shared.invocations.lock().await;
         *invocations += 1;
         Ok(*invocations)
     }
 
-    async fn setup() -> anyhow::Result<()> {
+    async fn setup(_region: &'a str) -> anyhow::Result<Shared> {
         simple_logger::SimpleLogger::new()
             .with_level(log::LevelFilter::Info)
             .init()
             .expect("Unable to setup logging");
-        Ok(())
+        Ok(Shared::default())
     }
 }
 
