@@ -1,6 +1,6 @@
 [package]
 name = "lambda-runtime-types"
-version = "0.6.3"
+version = "0.6.4"
 authors = ["Marc Mettke <marc@itmettke.de>"]
 edition = "2021"
 description = "Common structures for lambda architecture"
