@@ -43,7 +43,7 @@ serde_json = { version = "1", optional = true }
 [dev-dependencies]
 native-tls = "0.2"
 postgres-native-tls = "0.5"
-simple_logger = "2"
+simple_logger = "3"
 tokio-postgres = "0.7"
 
 [[example]]
