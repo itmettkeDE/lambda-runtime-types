@@ -29,13 +29,13 @@ _rotate = ["serde_json"]
 anyhow = "1"
 async-trait = "0.1"
 futures = "0.3"
-lambda_runtime = "0.7"
+lambda_runtime = "0.11"
 log = "0.4"
 serde = { version = "1", features = ["derive"] }
 tokio = "1"
 
-aws-config = { version = "0.52", features = ["rustls"], optional = true }
-aws-sdk-secretsmanager = { version = "0.22", features = ["rustls"], optional = true }
+aws-config = { version = "0.101", features = ["rustls"], optional = true }
+aws-sdk-secretsmanager = { version = "0.39", features = ["rustls"], optional = true }
 rusoto_core = { version = "0.48", default-features = false, features = ["rustls"], optional = true }
 rusoto_secretsmanager = { version = "0.48", default-features = false, features = ["rustls"], optional = true }
 serde_json = { version = "1", optional = true }
